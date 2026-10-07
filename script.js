@@ -929,9 +929,20 @@ function updateCustomerCareLinks() {
   const wa = document.getElementById("modalWhatsappBtn");
   const tgUrl = buildTelegramUrl(socialHandles.telegram);
   const waUrl = buildWhatsappUrl(socialHandles.whatsapp);
-  if (tg && tgUrl) tg.href = tgUrl;
+  const supportMsg = encodeURIComponent("Hello Ghana Cash Support, I need assistance");
+
+  if (tg && tgUrl) {
+    // Prefill only works on t.me/<username> links (not invite links like t.me/+xxxx or joinchat)
+    const isPrefillable = /^https?:\/\/(t\.me|telegram\.me)\//i.test(tgUrl) &&
+                          !/\/(\+|joinchat\/)/i.test(tgUrl) &&
+                          !/[?&]text=/i.test(tgUrl);
+    tg.href = isPrefillable
+      ? tgUrl + (tgUrl.indexOf("?") === -1 ? "?" : "&") + "text=" + supportMsg
+      : tgUrl;
+  }
+
   if (wa && waUrl) {
-    wa.href = waUrl + (waUrl.indexOf("?") === -1 ? "?text=" + encodeURIComponent("Hello Ghana Cash Support, I need assistance") : "");
+    wa.href = waUrl + (waUrl.indexOf("?") === -1 ? "?text=" + supportMsg : "");
   }
 }
 
