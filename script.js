@@ -896,7 +896,7 @@ function dismissDownloadPrompt() {
   if (banner) banner.classList.remove("show");
 }
 
-const APK_URL = "https://raw.githubusercontent.com/Xantech007/GhanaCash2/main/GhanaCash.apk";
+const APK_URL = "https://raw.githubusercontent.com/Xantech007/GhanaCash-Me/main/GhanaCash.apk";
 
 function downloadAppAPK() {
   showToast("Downloading APK...");
