@@ -2,13 +2,13 @@
 // Initialize Firebase and export _9jaCash global for all pages
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCWLYs4hW1bXcuEc2pYSBjxN9ApWUjmxh8",
-  authDomain: "confirm-deposits.firebaseapp.com",
-  projectId: "confirm-deposits",
-  storageBucket: "confirm-deposits.firebasestorage.app",
-  messagingSenderId: "927666910567",
-  appId: "1:927666910567:web:f26b51d979f95666ebabc2",
-  measurementId: "G-T6LM5QFM3D"
+  apiKey: "AIzaSyBBcBrcVKyYDq3aoE_QtrgPdlVQlQldZbw",
+  authDomain: "ghanacashmine2.firebaseapp.com",
+  projectId: "ghanacashmine2",
+  storageBucket: "ghanacashmine2.firebasestorage.app",
+  messagingSenderId: "404873267052",
+  appId: "1:404873267052:web:19b30cfb3553a47f60d549",
+  measurementId: "G-2YFSM08FPF"
 };
 
 
