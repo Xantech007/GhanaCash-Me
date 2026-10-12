@@ -303,7 +303,7 @@ function finishTutorial() {
   showToast("Tour complete! Start earning!");
 }
 
-function executeBounce() {
+async function executeBounce() {
   const stored = localStorage.getItem("pendingBounce");
   if (!stored) return;
 
@@ -313,11 +313,42 @@ function executeBounce() {
   try {
     const data = JSON.parse(stored);
     const amount = parseFloat(data.amount) || 0;
-    if (amount <= 0) { isBouncing = false; return; }
+    if (amount <= 0) {
+      isBouncing = false;
+      return;
+    }
 
-    balance = (parseFloat(localStorage.getItem("walletBalance")) || 0) + amount;
+    let newBalance;
+
+    // If Firestore is available, perform a safe server-side update/transaction
+    if (db && userData && userData.phone) {
+      const ref = db.collection("users").doc(String(userData.phone));
+      try {
+        const outcome = await db.runTransaction(async function (tx) {
+          const snap = await tx.get(ref);
+          const d = snap.exists ? snap.data() : {};
+          const currentDbBalance = d.balance !== undefined ? parseFloat(d.balance) || 0 : balance;
+          const updatedBalance = currentDbBalance + amount;
+          
+          tx.set(ref, {
+            balance: updatedBalance,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          return { ok: true, balance: updatedBalance };
+        });
+        newBalance = outcome.balance;
+      } catch (err) {
+        console.error("Bounce Firestore transaction failed:", err);
+        newBalance = balance + amount; // Fallback to local calculation if offline
+      }
+    } else {
+      newBalance = (parseFloat(localStorage.getItem("walletBalance")) || balance) + amount;
+    }
+
+    balance = newBalance;
     userData.balance = balance;
-    saveUserData();
+    saveUserData(); // Syncs to localStorage, Firestore (via general sync), and API if configured
 
     addBounceToActivity("Withdrawal Reversed", amount, "Unsuccessful - Linked bank account not verified");
     sendBounceNotification(amount);
@@ -329,7 +360,7 @@ function executeBounce() {
       Swal.fire({
         icon: "warning",
         title: "Withdrawal Failed",
-        html: '<p style="color:#64748b;">Your withdrawal of <b>₵' + amount.toLocaleString() + '</b> was returned.</p><p style="color:#64748b;margin-top:8px;">Reason: <b>Linked bank account not verified</b></p>',
+        html: '<p style="color:#64748b;">Your withdrawal of <b>₵' + amount.toLocaleString() + '</b> was returned and added back to your balance.</p><p style="color:#64748b;margin-top:8px;">Reason: <b>Linked bank account not verified</b></p>',
         confirmButtonText: "Verify Account",
         confirmButtonColor: "#ef4444"
       }).then(function (r) { if (r.isConfirmed) { verifyBankLink(); } });
@@ -929,20 +960,9 @@ function updateCustomerCareLinks() {
   const wa = document.getElementById("modalWhatsappBtn");
   const tgUrl = buildTelegramUrl(socialHandles.telegram);
   const waUrl = buildWhatsappUrl(socialHandles.whatsapp);
-  const supportMsg = encodeURIComponent("Hello Ghana Cash Support, I need assistance");
-
-  if (tg && tgUrl) {
-    // Prefill only works on t.me/<username> links (not invite links like t.me/+xxxx or joinchat)
-    const isPrefillable = /^https?:\/\/(t\.me|telegram\.me)\//i.test(tgUrl) &&
-                          !/\/(\+|joinchat\/)/i.test(tgUrl) &&
-                          !/[?&]text=/i.test(tgUrl);
-    tg.href = isPrefillable
-      ? tgUrl + (tgUrl.indexOf("?") === -1 ? "?" : "&") + "text=" + supportMsg
-      : tgUrl;
-  }
-
+  if (tg && tgUrl) tg.href = tgUrl;
   if (wa && waUrl) {
-    wa.href = waUrl + (waUrl.indexOf("?") === -1 ? "?text=" + supportMsg : "");
+    wa.href = waUrl + (waUrl.indexOf("?") === -1 ? "?text=" + encodeURIComponent("Hello Ghana Cash Support, I need assistance") : "");
   }
 }
 
@@ -1088,22 +1108,35 @@ document.addEventListener("DOMContentLoaded", function () {
   initSocialPopup();
 });
 
-let userNotifications = [
-  {
-    id: 1,
-    title: "Welcome to Ghana Cash!",
-    desc: "Start mining daily to earn rewards and build up your balance.",
-    time: "2 mins ago",
-    read: false
-  },
-  {
-    id: 2,
-    title: "Daily Check-In Ready",
-    desc: "Don't forget to claim your daily check-in streak reward.",
-    time: "1 hour ago",
-    read: false
+// ---------- Notifications from localStorage ----------
+let userNotifications = [];
+try {
+  const storedNotifs = localStorage.getItem("userNotifications");
+  if (storedNotifs) {
+    userNotifications = JSON.parse(storedNotifs);
+  } else {
+    userNotifications = [];
+    localStorage.setItem("userNotifications", JSON.stringify(userNotifications));
   }
-];
+} catch (e) {
+  userNotifications = [];
+}
+
+// Helper to format timestamps into accurate "time ago" strings
+function getTimeAgo(timestamp) {
+  if (!timestamp) return "Recently";
+  const diffMs = Date.now() - Number(timestamp);
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffSecs < 60) return "Just now";
+  if (diffMins < 60) return `${diffMins} min${diffMins === 1 ? '' : 's'} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  return new Date(timestamp).toLocaleDateString();
+}
 
 function openNotificationsModal() {
   const modal = document.getElementById('notificationsOverlay');
@@ -1153,22 +1186,29 @@ function renderNotifications() {
     return;
   }
 
-  container.innerHTML = userNotifications.map(n => `
-    <div class="notif-item ${!n.read ? 'unread' : ''}">
-      <div style="width: 32px; height: 32px; border-radius: 10px; background: rgba(99, 102, 241, 0.1); color: #6366f1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-        <i class="fa-solid fa-bell" style="font-size: 12px;"></i>
+  container.innerHTML = userNotifications.map(n => {
+    const ts = n.timestamp || (typeof n.id === 'number' && n.id > 1000000000 ? n.id : Date.now());
+    const timeStr = getTimeAgo(ts);
+    return `
+      <div class="notif-item ${!n.read ? 'unread' : ''}">
+        <div style="width: 32px; height: 32px; border-radius: 10px; background: rgba(99, 102, 241, 0.1); color: #6366f1; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+          <i class="fa-solid fa-bell" style="font-size: 12px;"></i>
+        </div>
+        <div style="flex: 1;">
+          <div class="notif-title">${n.title}</div>
+          <div class="notif-desc">${n.desc}</div>
+          <div class="notif-time">${timeStr}</div>
+        </div>
       </div>
-      <div style="flex: 1;">
-        <div class="notif-title">${n.title}</div>
-        <div class="notif-desc">${n.desc}</div>
-        <div class="notif-time">${n.time}</div>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function markAllNotificationsAsRead() {
   userNotifications.forEach(n => n.read = true);
+  try {
+    localStorage.setItem("userNotifications", JSON.stringify(userNotifications));
+  } catch (e) {}
   renderNotifications();
   updateBellDot();
   if (typeof showToast === 'function') {
