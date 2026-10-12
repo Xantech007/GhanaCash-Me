@@ -549,7 +549,7 @@ select.form-input{cursor:pointer;appearance:none;background-image:url("data:imag
     </div>
   </div>
 
-  <!-- Sub-tab switch -->
+<!-- Sub-tab switch -->
   <div style="display:flex;gap:8px;margin-bottom:20px;">
     <button id="uploadsSubtabReceiptsBtn" onclick="switchUploadSubtab('receipts')"
       style="flex:1;padding:12px 6px;border-radius:12px;border:1.5px solid var(--accent);background:var(--accent);color:#fff;font-weight:700;font-size:12px;cursor:pointer;transition:all 0.2s;">
@@ -562,6 +562,10 @@ select.form-input{cursor:pointer;appearance:none;background-image:url("data:imag
     <button id="uploadsSubtabLoginBtn" onclick="switchUploadSubtab('loginVideos')"
       style="flex:1;padding:12px 6px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);font-weight:700;font-size:12px;cursor:pointer;transition:all 0.2s;">
       <i class="fa-solid fa-clapperboard"></i> Login Videos
+    </button>
+    <button id="uploadsSubtabVerifyBtn" onclick="switchUploadSubtab('verifyTutorial')"
+      style="flex:1;padding:12px 6px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);font-weight:700;font-size:12px;cursor:pointer;transition:all 0.2s;">
+      <i class="fa-solid fa-graduation-cap"></i> Verify Tutorial
     </button>
   </div>
 
@@ -1424,20 +1428,24 @@ async function saveUserEdit(){
 let uploadsInited=false;
 let currentUploadTab='receipts';
 
-const uploadsConfig={
-  receipts:{
-    collection:'paymentReceipts',
-    orderField:'createdAt',
-    label:'Payment Receipts'
+const uploadsConfig = {
+  receipts: {
+    collection: 'paymentReceipts',
+    orderField: 'createdAt',
+    label: 'Payment Receipts'
   },
-  videos:{
-    collection:'videoChallenge',
-    orderField:'submittedAt',
-    label:'Video Submissions'
+  videos: {
+    collection: 'videoChallenge',
+    orderField: 'submittedAt',
+    label: 'Video Submissions'
   },
-  loginVideos:{
-    collection:'loginVideos',
-    label:'Login Videos'
+  loginVideos: {
+    collection: 'loginVideos',
+    label: 'Login Videos'
+  },
+  verifyTutorial: {
+    collection: 'verificationTutorialVideos',
+    label: 'Verification Tutorial Videos'
   }
 };
 
@@ -1469,28 +1477,34 @@ function statusBadgeColor(status){
 }
 
 function switchUploadSubtab(tab){
-  currentUploadTab=tab;
-  const cfg=uploadsConfig[tab];
+  currentUploadTab = tab;
+  const cfg = uploadsConfig[tab];
 
-  const btns={receipts:'uploadsSubtabReceiptsBtn',videos:'uploadsSubtabVideosBtn',loginVideos:'uploadsSubtabLoginBtn'};
-  Object.keys(btns).forEach(k=>{
-    const b=document.getElementById(btns[k]);
-    const on=k===tab;
-    b.style.background=on?'var(--accent)':'var(--surface2)';
-    b.style.borderColor=on?'var(--accent)':'var(--border)';
-    b.style.color=on?'#fff':'var(--text2)';
+  const btns = {
+    receipts: 'uploadsSubtabReceiptsBtn',
+    videos: 'uploadsSubtabVideosBtn',
+    loginVideos: 'uploadsSubtabLoginBtn',
+    verifyTutorial: 'uploadsSubtabVerifyBtn'
+  };
+  
+  Object.keys(btns).forEach(k => {
+    const b = document.getElementById(btns[k]);
+    const on = k === tab;
+    b.style.background = on ? 'var(--accent)' : 'var(--surface2)';
+    b.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+    b.style.color = on ? '#fff' : 'var(--text2)';
   });
 
-  document.getElementById('uploadsListTitle').textContent=cfg.label;
+  document.getElementById('uploadsListTitle').textContent = cfg.label;
 
-  const isLV=tab==='loginVideos';
-  document.getElementById('loginVideoFormPanel').style.display=isLV?'block':'none';
-  document.getElementById('uploadsPager').style.display=isLV?'none':'flex';
-  document.getElementById('uploadsListSub').textContent=isLV?'Shown on the login screen • ordered by #':'20 per page • newest first';
+  const isVideoForm = (tab === 'loginVideos' || tab === 'verifyTutorial');
+  document.getElementById('loginVideoFormPanel').style.display = isVideoForm ? 'block' : 'none';
+  document.getElementById('uploadsPager').style.display = isVideoForm ? 'none' : 'flex';
+  document.getElementById('uploadsListSub').textContent = isVideoForm ? 'Shown on the user verification modal • ordered by #' : '20 per page • newest first';
 
-  if(isLV){
+  if (isVideoForm) {
     resetLoginVideoForm();
-    fetchLoginVideos();
+    fetchLoginVideos(); // Reuses cache logic for video lists
     return;
   }
   fetchUploadsPage(0);
