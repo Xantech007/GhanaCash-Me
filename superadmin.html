@@ -1653,7 +1653,7 @@ function closeUploadDetail(){
   document.getElementById('uploadDetailOverlay').style.display='none';
 }
 
-// ========== LOGIN VIDEOS (loginVideos collection: add / edit / delete) ==========
+// ========== LOGIN VIDEOS & VERIFICATION TUTORIAL VIDEOS (loginVideos / verificationTutorialVideos collections) ==========
 const CLOUDINARY_CLOUD='nhm2xhew';
 const CLOUDINARY_PRESET='login_videos';
 let lvCache=[];
@@ -1663,6 +1663,10 @@ let lvPublicId=null;
 
 function lvEsc(v){
   return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function getCurrentCollectionName(){
+  return currentUploadTab==='verifyTutorial'?'verificationTutorialVideos':'loginVideos';
 }
 
 function uploadToCloudinary(file,onProgress){
@@ -1706,7 +1710,7 @@ async function lvHandleFile(input){
     document.getElementById('lvUrl').value=res.secure_url;
     lvPublicId=res.public_id||null;
     if(!document.getElementById('lvTitle').value.trim()){
-      document.getElementById('lvTitle').value=file.name.replace(/\.[^.]+$/,'');
+      document.getElementById('lvTitle').value=file.name.replace(/\.[^.]+\$/,'');
     }
     bar.style.width='100%';
     txt.textContent='Upload complete — click Save to store it';
@@ -1730,7 +1734,8 @@ function resetLoginVideoForm(){
   const maxOrder=lvCache.reduce((m,v)=>Math.max(m,Number(v.order)||0),0);
   document.getElementById('lvOrder').value=maxOrder+1;
   document.getElementById('lvProgressWrap').style.display='none';
-  document.getElementById('lvFormTitle').textContent='Add Login Video';
+  const isVerify=currentUploadTab==='verifyTutorial';
+  document.getElementById('lvFormTitle').textContent=isVerify?'Add Verification Tutorial Video':'Add Login Video';
   document.getElementById('lvSaveTxt').textContent='Save Video';
   document.getElementById('lvCancelBtn').style.display='none';
 }
@@ -1739,7 +1744,8 @@ async function fetchLoginVideos(){
   const list=document.getElementById('uploadsList');
   list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Loading...</div>';
   try{
-    const snap=await db.collection('loginVideos').get();
+    const colName=getCurrentCollectionName();
+    const snap=await db.collection(colName).get();
     lvCache=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(Number(a.order)||0)-(Number(b.order)||0));
     if(!lvEditingId){
       const maxOrder=lvCache.reduce((m,v)=>Math.max(m,Number(v.order)||0),0);
@@ -1753,8 +1759,10 @@ async function fetchLoginVideos(){
 
 function renderLoginVideos(){
   const list=document.getElementById('uploadsList');
+  const isVerify=currentUploadTab==='verifyTutorial';
+  const emptyMsg=isVerify?'No verification tutorial videos yet. Use the form above to add one.':'No login videos yet. Use the form above to add one.';
   if(!lvCache.length){
-    list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">No login videos yet. Use the form above to add one.</div>';
+    list.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">'+emptyMsg+'</div>';
     return;
   }
   list.innerHTML=lvCache.map((v,i)=>{
@@ -1788,7 +1796,8 @@ function editLoginVideo(i){
   document.getElementById('lvStatus').value=v.active===false?'false':'true';
   document.getElementById('lvFile').value='';
   document.getElementById('lvProgressWrap').style.display='none';
-  document.getElementById('lvFormTitle').textContent='Edit Login Video';
+  const isVerify=currentUploadTab==='verifyTutorial';
+  document.getElementById('lvFormTitle').textContent=isVerify?'Edit Verification Tutorial Video':'Edit Login Video';
   document.getElementById('lvSaveTxt').textContent='Update Video';
   document.getElementById('lvCancelBtn').style.display='flex';
   renderLoginVideos();
@@ -1810,22 +1819,23 @@ async function saveLoginVideo(){
   const orig=txt.textContent;
   btn.disabled=true;txt.textContent='Saving...';
   try{
+    const colName=getCurrentCollectionName();
     const data={title,video_url,order,active};
     if(lvPublicId)data.cloudinary_public_id=lvPublicId;
     if(lvEditingId){
       data.updatedAt=firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('loginVideos').doc(lvEditingId).update(data);
-      showToast('Login video updated');
+      await db.collection(colName).doc(lvEditingId).update(data);
+      showToast('Video updated successfully');
     }else{
       data.createdAt=firebase.firestore.FieldValue.serverTimestamp();
-      await db.collection('loginVideos').add(data);
-      showToast('Login video added');
+      await db.collection(colName).add(data);
+      showToast('Video added successfully');
     }
     lvEditingId=null;
     await fetchLoginVideos();
     resetLoginVideoForm();
   }catch(err){
-    console.error('Save login video error:',err);
+    console.error('Save video error:',err);
     showToast('Failed to save: '+err.message,'error');
     txt.textContent=orig;
   }finally{
@@ -1838,12 +1848,13 @@ async function deleteLoginVideo(i){
   if(!v)return;
   if(!confirm('Delete "'+(v.title||'this video')+'"? This cannot be undone.'))return;
   try{
-    await db.collection('loginVideos').doc(v.id).delete();
-    showToast('Login video deleted');
+    const colName=getCurrentCollectionName();
+    await db.collection(colName).doc(v.id).delete();
+    showToast('Video deleted');
     if(lvEditingId===v.id)resetLoginVideoForm();
     await fetchLoginVideos();
   }catch(err){
-    console.error('Delete login video error:',err);
+    console.error('Delete video error:',err);
     showToast('Could not delete: '+err.message,'error');
   }
 }
@@ -1852,7 +1863,8 @@ function previewLoginVideo(i){
   const v=lvCache[i];
   if(!v)return;
   const url=v.video_url||v.url||'';
-  document.getElementById('uploadDetailTitle').textContent=v.title||'Login Video';
+  const isVerify=currentUploadTab==='verifyTutorial';
+  document.getElementById('uploadDetailTitle').textContent=v.title||(isVerify?'Verification Tutorial Video':'Login Video');
   document.getElementById('uploadDetailMedia').innerHTML=url?`<video src="${lvEsc(url)}" controls playsinline autoplay style="width:100%;border-radius:12px;border:1px solid var(--border);max-height:320px;display:block;"></video>`:'';
   const rows=[['Order',v.order||'—'],['Status',v.active===false?'Disabled':'Active'],['Created',fmtUploadDate(v.createdAt)]];
   if(v.updatedAt)rows.push(['Updated',fmtUploadDate(v.updatedAt)]);
@@ -1878,6 +1890,7 @@ function showToast(msg,type){
 document.querySelectorAll('input,textarea').forEach(el=>el.addEventListener('input',updatePreview));
 
 window.addEventListener('load',initAuth);
+  
 </script>
 </body>
 </html>
