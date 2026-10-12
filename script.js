@@ -787,19 +787,65 @@ function handleVerifyClick() {
   openVerificationVideoModal();
 }
 
-function openVerificationVideoModal() {
+async function openVerificationVideoModal() {
   const modal = document.getElementById("verificationVideoModal");
-  if (modal) modal.style.display = "flex";
+  const player = document.getElementById("verificationVideoModalPlayer");
+  if (!modal) return;
+
+  modal.style.display = "flex";
+
+  if (player && (!player.src || player.src === window.location.href)) {
+    try {
+      if (db) {
+        let snap = await db.collection("verificationTutorialVideos")
+          .where("active", "==", true)
+          .orderBy("order", "asc")
+          .get();
+        
+        if (snap.empty) {
+          snap = await db.collection("verificationTutorialVideos").get();
+        }
+
+        if (!snap.empty) {
+          const docData = snap.docs[0].data();
+          const videoUrl = docData.video_url || docData.url;
+          if (videoUrl) {
+            player.src = videoUrl;
+            player.load();
+            player.play().catch(err => {
+              console.log("Autoplay blocked or requires interaction:", err);
+            });
+          }
+        } else {
+          console.warn("No verification tutorial videos found in Firestore collection 'verificationTutorialVideos'.");
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching verification tutorial video:", e);
+    }
+  } else if (player) {
+    player.play().catch(() => {});
+  }
 }
 
 function skipVerificationVideo() {
   const modal = document.getElementById("verificationVideoModal");
+  const player = document.getElementById("verificationVideoModalPlayer");
+  if (player) {
+    player.pause();
+    player.currentTime = 0;
+  }
   if (modal) modal.style.display = "none";
   verifyBankLink();
 }
 
 function proceedToVerify() {
   const modal = document.getElementById("verificationVideoModal");
+  const player = document.getElementById("verificationVideoModalPlayer");
+  if (player) {
+    player.pause();
+    player.currentTime = 0;
+  }
   if (modal) modal.style.display = "none";
   verifyBankLink();
 }
