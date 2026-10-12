@@ -794,6 +794,11 @@ async function openVerificationVideoModal() {
 
   modal.style.display = "flex";
 
+  if (player) {
+    // Ensure muted is true to bypass browser autoplay restrictions
+    player.muted = true;
+  }
+
   if (player && (!player.src || player.src === window.location.href)) {
     try {
       if (db) {
@@ -813,7 +818,7 @@ async function openVerificationVideoModal() {
             player.src = videoUrl;
             player.load();
             player.play().catch(err => {
-              console.log("Autoplay blocked or requires interaction:", err);
+              console.log("Autoplay blocked:", err);
             });
           }
         } else {
