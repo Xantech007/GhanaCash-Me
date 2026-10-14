@@ -32,7 +32,7 @@ let claimTimer = null;
 let secondsLeft = CLAIM_INTERVAL;
 
 // ---------- Mining cooldown & Plan Multiplier helpers ----------
-const BASE_MINE_AMOUNT = 250;
+const BASE_MINE_AMOUNT = 3000;
 const MINE_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
 let isMining = false;
 
